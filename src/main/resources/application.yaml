@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: auction-parser
+  # DataSource is defined programmatically in DatabaseConfig so the parent
+  # directory can be created before SQLite opens the file.
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+# Application-specific settings. Runtime-editable values (interval, telegram
+# token, filters) live in the SQLite `settings`/`filters` tables; these are
+# bootstrap defaults only.
+app:
+  data-dir: ${user.home}/.auctionnotifier
+  monitoring:
+    default-interval-minutes: 5
+    # When true, a demo provider emits a synthetic lot each cycle so the
+    # dedup -> persist -> Telegram pipeline can be exercised without the real
+    # Copart/IAAI parsers. Keep false in production.
+    demo-provider-enabled: false
+  http:
+    connect-timeout-seconds: 15
+    request-timeout-seconds: 30
+    max-retries: 3
+    retry-backoff-millis: 1000
+  copart:
+    # Set headless=false (and optionally slow-mo-millis) to watch the login flow
+    # while tuning selectors against the real site.
+    headless: true
+    login-url: https://www.copart.com/login/
+    dashboard-url: https://www.copart.com/dashboard/
+    navigation-timeout-seconds: 45
+    slow-mo-millis: 0
+
+logging:
+  level:
+    com.example.auctionparser: INFO
