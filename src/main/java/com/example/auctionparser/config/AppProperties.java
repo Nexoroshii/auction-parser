@@ -19,6 +19,32 @@ public class AppProperties {
     private final Monitoring monitoring = new Monitoring();
     private final Http http = new Http();
     private final Copart copart = new Copart();
+    private final Proxy proxy = new Proxy();
+
+    /**
+     * Optional outbound proxy so the auction sites see a US IP without a
+     * system-wide VPN. Applied to both the Copart browser and the HTTP client
+     * (IAAI/Telegram). An HTTP/HTTPS proxy works everywhere; SOCKS is only honored
+     * by the Copart browser.
+     */
+    @Data
+    public static class Proxy {
+        private boolean enabled = false;
+        /** "http" (recommended, works for all traffic) or "socks5" (Copart only). */
+        private String scheme = "http";
+        private String host = "";
+        private int port = 0;
+        private String username = "";
+        private String password = "";
+
+        public boolean isUsable() {
+            return enabled && host != null && !host.isBlank() && port > 0;
+        }
+
+        public String serverUrl() {
+            return scheme + "://" + host + ":" + port;
+        }
+    }
 
     @Data
     public static class Monitoring {
@@ -38,6 +64,14 @@ public class AppProperties {
     public static class Copart {
         /** Run Chromium without a visible window. Set false to debug login. */
         private boolean headless = true;
+        /**
+         * Playwright browser channel. Using a real installed browser instead of
+         * Playwright's bundled Chromium gives a far more convincing fingerprint
+         * against Imperva/Incapsula bot detection. "msedge" = Microsoft Edge
+         * (ships with Windows), "chrome" = Google Chrome. Empty falls back to
+         * bundled Chromium.
+         */
+        private String channel = "msedge";
         private String loginUrl = "https://www.copart.com/login/";
         private String dashboardUrl = "https://www.copart.com/dashboard/";
         /** Per-navigation timeout for the headless browser. */

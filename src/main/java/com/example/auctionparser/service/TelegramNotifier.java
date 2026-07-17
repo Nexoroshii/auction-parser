@@ -18,6 +18,8 @@ import java.util.List;
 public class TelegramNotifier {
 
     private static final int MAX_PHOTOS_PER_GROUP = 10;
+    /** Telegram's caption length limit for photos/albums. */
+    private static final int MAX_CAPTION_LENGTH = 1024;
 
     private final TelegramClient client;
     private final MessageFormatter formatter;
@@ -44,10 +46,13 @@ public class TelegramNotifier {
     }
 
     /**
-     * Sends a lot as its own message followed by photos and optional video.
+     * Sends a lot as a single text+photo message (the lot text becomes the photo/
+     * album caption), plus an optional video. Falls back to a separate text
+     * message when there are no photos, or when the text exceeds Telegram's
+     * caption limit.
      *
      * @param chatIdOverride optional per-filter chat id; null uses the default.
-     * @return true if the primary text message was delivered.
+     * @return true if the primary message was delivered.
      */
     public boolean sendLot(Lot lot, String chatIdOverride) throws IOException {
         TelegramSettings tg = settingsService.getTelegramSettings();
@@ -55,20 +60,46 @@ public class TelegramNotifier {
             throw new IOException("Telegram is not configured (token/chat id missing)");
         }
         AppSettings app = settingsService.getAppSettings();
+        String token = tg.getBotToken();
         String chatId = (chatIdOverride != null && !chatIdOverride.isBlank())
                 ? chatIdOverride : tg.getChatId();
+        String text = formatter.format(lot);
 
-        TelegramClient.ApiResult text = client.sendMessage(tg.getBotToken(), chatId, formatter.format(lot));
+        boolean hasPhotos = app.isSendPhotos()
+                && lot.getPhotoUrls() != null && !lot.getPhotoUrls().isEmpty();
+        boolean captionFits = text.length() <= MAX_CAPTION_LENGTH;
 
-        if (app.isSendPhotos() && lot.getPhotoUrls() != null && !lot.getPhotoUrls().isEmpty()) {
+        boolean delivered;
+        if (!hasPhotos) {
+            delivered = client.sendMessage(token, chatId, text).ok();
+        } else if (!captionFits) {
+            // Too long to ride along as a caption: text first, then plain photos.
+            delivered = client.sendMessage(token, chatId, text).ok();
             for (List<String> chunk : chunk(lot.getPhotoUrls(), MAX_PHOTOS_PER_GROUP)) {
-                client.sendPhotoGroup(tg.getBotToken(), chatId, chunk);
+                sendPhotoChunk(token, chatId, chunk, null);
+            }
+        } else {
+            // Text + photos as one message: caption rides on the first chunk.
+            List<List<String>> chunks = chunk(lot.getPhotoUrls(), MAX_PHOTOS_PER_GROUP);
+            delivered = sendPhotoChunk(token, chatId, chunks.get(0), text).ok();
+            for (int i = 1; i < chunks.size(); i++) {
+                sendPhotoChunk(token, chatId, chunks.get(i), null);
             }
         }
+
         if (app.isSendVideo() && lot.getVideoUrl() != null && !lot.getVideoUrl().isBlank()) {
-            client.sendVideo(tg.getBotToken(), chatId, lot.getVideoUrl());
+            client.sendVideo(token, chatId, lot.getVideoUrl());
         }
-        return text.ok();
+        return delivered;
+    }
+
+    /** Sends one photo chunk, using sendPhoto for a single image (a 1-item album is rejected). */
+    private TelegramClient.ApiResult sendPhotoChunk(String token, String chatId,
+                                                    List<String> chunk, String caption) throws IOException {
+        if (chunk.size() == 1) {
+            return client.sendPhoto(token, chatId, chunk.get(0), caption);
+        }
+        return client.sendPhotoGroup(token, chatId, chunk, caption);
     }
 
     private static <T> List<List<T>> chunk(List<T> list, int size) {

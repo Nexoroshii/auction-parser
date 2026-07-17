@@ -10,7 +10,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.ToolBar;
-import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -35,15 +34,21 @@ public class HistoryWindow extends Stage {
         this.exportService = exportService;
         setTitle("История лотов");
 
+        // HistoryRow is a record, so its accessors are lotId()/dateFound()/url(),
+        // not JavaBean getters — PropertyValueFactory can't read those. Use
+        // explicit lambdas (as the Auction column already does).
         TableColumn<LotRepository.HistoryRow, String> lotCol = new TableColumn<>("Lot");
-        lotCol.setCellValueFactory(new PropertyValueFactory<>("lotId"));
+        lotCol.setCellValueFactory(c ->
+                new javafx.beans.property.SimpleStringProperty(c.getValue().lotId()));
         TableColumn<LotRepository.HistoryRow, String> auctionCol = new TableColumn<>("Auction");
         auctionCol.setCellValueFactory(c ->
                 new javafx.beans.property.SimpleStringProperty(c.getValue().auction().getDisplayName()));
         TableColumn<LotRepository.HistoryRow, String> dateCol = new TableColumn<>("Найден");
-        dateCol.setCellValueFactory(new PropertyValueFactory<>("dateFound"));
+        dateCol.setCellValueFactory(c ->
+                new javafx.beans.property.SimpleStringProperty(c.getValue().dateFound()));
         TableColumn<LotRepository.HistoryRow, String> urlCol = new TableColumn<>("URL");
-        urlCol.setCellValueFactory(new PropertyValueFactory<>("url"));
+        urlCol.setCellValueFactory(c ->
+                new javafx.beans.property.SimpleStringProperty(c.getValue().url()));
         urlCol.setPrefWidth(280);
         table.getColumns().addAll(lotCol, auctionCol, dateCol, urlCol);
 

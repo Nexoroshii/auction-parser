@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### AuctionNotifier local config (proxy creds — do not commit)
+/config/application.yaml
+
+### Scratch logs
+scratch_app_*.log

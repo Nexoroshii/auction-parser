@@ -71,8 +71,9 @@ public class MonitoringService {
         refreshFoundToday();
     }
 
+    /** @return the number of newly discovered (first-seen) lots for this filter. */
     private int processFilter(AuctionProvider provider, SearchFilter filter) {
-        int sent = 0;
+        int newlyFound = 0;
         List<Lot> lots;
         try {
             lots = provider.search(filter);
@@ -92,15 +93,28 @@ public class MonitoringService {
             if (lotRepository.exists(lot.getAuction(), lot.getLotId())) {
                 continue; // already seen previously — never resend
             }
+            // Fetch the full photo gallery only now that we know the lot is new, so
+            // we don't pay the per-lot image request for lots we've already sent.
+            enrichPhotos(provider, lot);
             boolean inserted = lotRepository.insertIfNew(lot, Instant.now().toString(), false);
             if (!inserted) {
                 continue; // lost a race with another cycle
             }
-            if (deliver(lot, filter)) {
-                sent++;
-            }
+            // Count the lot as found regardless of whether delivery succeeds; a
+            // failed Telegram send leaves sent=0 so a later cycle retries.
+            newlyFound++;
+            deliver(lot, filter);
         }
-        return sent;
+        return newlyFound;
+    }
+
+    /** Enriches a lot's photos, isolating any provider failure. */
+    private void enrichPhotos(AuctionProvider provider, Lot lot) {
+        try {
+            provider.enrichPhotos(lot);
+        } catch (RuntimeException e) {
+            uiLog.error("Не удалось загрузить фото лота " + lot.getLotId(), e);
+        }
     }
 
     private boolean deliver(Lot lot, SearchFilter filter) {

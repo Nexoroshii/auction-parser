@@ -50,18 +50,39 @@ public class TelegramClient {
     }
 
     /**
-     * Sends up to 10 photos as an album (Telegram's per-group limit). Callers
-     * should chunk larger sets. Photos are referenced by URL.
+     * Sends a single photo by URL, optionally with a caption, so a lot's text and
+     * its photo arrive as one message. Caption is capped at Telegram's 1024 chars.
      */
-    public ApiResult sendPhotoGroup(String botToken, String chatId, List<String> photoUrls)
+    public ApiResult sendPhoto(String botToken, String chatId, String photoUrl, String caption)
             throws IOException {
         ObjectNode body = mapper.createObjectNode();
         body.put("chat_id", chatId);
+        body.put("photo", photoUrl);
+        if (caption != null && !caption.isBlank()) {
+            body.put("caption", caption);
+        }
+        return post(botToken, "sendPhoto", body);
+    }
+
+    /**
+     * Sends 2–10 photos as an album (Telegram's per-group limit). Callers should
+     * chunk larger sets. When {@code caption} is set it is attached to the first
+     * photo, so the album renders as a single captioned message.
+     */
+    public ApiResult sendPhotoGroup(String botToken, String chatId, List<String> photoUrls,
+                                    String caption) throws IOException {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("chat_id", chatId);
         ArrayNode media = body.putArray("media");
+        boolean first = true;
         for (String url : photoUrls) {
             ObjectNode item = media.addObject();
             item.put("type", "photo");
             item.put("media", url);
+            if (first && caption != null && !caption.isBlank()) {
+                item.put("caption", caption);
+            }
+            first = false;
         }
         return post(botToken, "sendMediaGroup", body);
     }
