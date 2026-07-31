@@ -15,7 +15,10 @@ import java.util.List;
 
 /**
  * Persistence for discovered lots. The {@code (lot_id, auction)} unique
- * constraint is the mechanism that guarantees a lot is never sent twice.
+ * constraint guarantees a lot is never inserted twice. A lot that comes back
+ * with a changed {@code auctionDate} (e.g. a "no sale" lot re-offered at a
+ * later auction) is treated as relisted via {@link #updateRelisted} rather
+ * than a duplicate — see {@link com.example.auctionparser.service.MonitoringService}.
  */
 @Repository
 public class LotRepository {
@@ -60,6 +63,21 @@ public class LotRepository {
     public void markSent(AuctionType auction, String lotId) {
         jdbc.update("UPDATE lots SET sent = 1 WHERE auction = ? AND lot_id = ?",
                 auction.name(), lotId);
+    }
+
+    /**
+     * Updates an already-recorded lot that has been relisted for a new
+     * auction date, resetting {@code sent} so it is delivered again.
+     */
+    public void updateRelisted(Lot lot, String dateFoundIso) {
+        jdbc.update(
+                "UPDATE lots SET url = ?, date_found = ?, sent = 0, details_json = ? "
+                        + "WHERE auction = ? AND lot_id = ?",
+                lot.getUrl(),
+                dateFoundIso,
+                toJson(lot),
+                lot.getAuction().name(),
+                lot.getLotId());
     }
 
     /** Count of lots first found at or after the given ISO timestamp. */

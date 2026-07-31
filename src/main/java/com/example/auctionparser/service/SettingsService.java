@@ -21,6 +21,8 @@ public class SettingsService {
     private static final String MINIMIZE_TO_TRAY = "app.minimizeToTray";
     private static final String SEND_PHOTOS = "app.sendPhotos";
     private static final String SEND_VIDEO = "app.sendVideo";
+    private static final String AUCTION_DAY_RANGE = "app.auctionDayRange";
+    private static final String TOPICS_ENABLED = "app.topicsEnabled";
     private static final String COPART_USERNAME = "copart.username";
     private static final String COPART_PASSWORD = "copart.password";
 
@@ -46,12 +48,16 @@ public class SettingsService {
 
     public AppSettings getAppSettings() {
         int defaultInterval = properties.getMonitoring().getDefaultIntervalMinutes();
+        int defaultDayRange = clampDayRange(properties.getMonitoring().getDefaultDayRange());
         return AppSettings.builder()
                 .intervalMinutes(parseInt(repo.get(INTERVAL, String.valueOf(defaultInterval)), defaultInterval))
                 .launchOnStartup(parseBool(repo.get(LAUNCH_ON_STARTUP, "false")))
                 .minimizeToTray(parseBool(repo.get(MINIMIZE_TO_TRAY, "true")))
                 .sendPhotos(parseBool(repo.get(SEND_PHOTOS, "true")))
                 .sendVideo(parseBool(repo.get(SEND_VIDEO, "true")))
+                .auctionDayRange(clampDayRange(
+                        parseInt(repo.get(AUCTION_DAY_RANGE, String.valueOf(defaultDayRange)), defaultDayRange)))
+                .topicsEnabled(parseBool(repo.get(TOPICS_ENABLED, "false")))
                 .build();
     }
 
@@ -73,6 +79,13 @@ public class SettingsService {
         repo.put(MINIMIZE_TO_TRAY, String.valueOf(settings.isMinimizeToTray()));
         repo.put(SEND_PHOTOS, String.valueOf(settings.isSendPhotos()));
         repo.put(SEND_VIDEO, String.valueOf(settings.isSendVideo()));
+        repo.put(AUCTION_DAY_RANGE, String.valueOf(clampDayRange(settings.getAuctionDayRange())));
+        repo.put(TOPICS_ENABLED, String.valueOf(settings.isTopicsEnabled()));
+    }
+
+    /** Only "today" (1) and "today+tomorrow" (2) are meaningful choices in the UI. */
+    private static int clampDayRange(int days) {
+        return days <= 1 ? 1 : 2;
     }
 
     private static String nullToEmpty(String s) {

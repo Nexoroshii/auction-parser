@@ -1,8 +1,10 @@
 -- SQLite schema for AuctionNotifier.
 -- Executed on every startup via spring.sql.init (idempotent).
 
--- Discovered lots. The (lot_id, auction) uniqueness guarantees a lot is never
--- processed twice, which is what prevents duplicate Telegram notifications.
+-- Discovered lots. The (lot_id, auction) uniqueness guarantees a lot row is
+-- inserted at most once; this prevents duplicate Telegram notifications for
+-- an unchanged lot. A lot relisted under a new auction date reuses this same
+-- row (see LotRepository.updateRelisted) instead of being skipped.
 CREATE TABLE IF NOT EXISTS lots (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     lot_id       TEXT    NOT NULL,
@@ -42,4 +44,13 @@ CREATE TABLE IF NOT EXISTS filters (
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT
+);
+
+-- Caches the forum-topic (message_thread_id) created for each make, per chat, so
+-- a topic is created once via createForumTopic and reused afterwards.
+CREATE TABLE IF NOT EXISTS telegram_topics (
+    chat_id   TEXT    NOT NULL,
+    make      TEXT    NOT NULL,
+    thread_id INTEGER NOT NULL,
+    PRIMARY KEY (chat_id, make)
 );

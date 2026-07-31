@@ -39,6 +39,15 @@ public interface AuctionProvider {
     }
 
     /**
+     * Fills in the lot's full photo gallery just before it is sent. Search results
+     * expose only a single thumbnail, so providers override this to fetch the rest
+     * (an extra request per lot); the pipeline calls it only for genuinely new
+     * lots. Failures should be swallowed, leaving the existing photo(s) intact.
+     */
+    default void enrichPhotos(Lot lot) {
+    }
+
+    /**
      * Client-side post-filter for criteria a provider cannot express in its
      * server query. Default keeps everything; providers/pipeline may reuse it.
      */

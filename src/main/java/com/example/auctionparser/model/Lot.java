@@ -1,8 +1,10 @@
 package com.example.auctionparser.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,9 +16,16 @@ import java.util.List;
  *
  * <p>The identity of a lot is {@code (auction, lotId)} &mdash; see
  * {@link com.example.auctionparser.repository.LotRepository} for deduplication.
+ *
+ * <p>{@code @NoArgsConstructor} is required alongside {@code @Builder} so
+ * Jackson has a default constructor to deserialize {@code details_json} back
+ * into a {@code Lot} (Lombok does not emit one implicitly once a builder
+ * constructor exists).
  */
 @Data
 @Builder(toBuilder = true)
+@NoArgsConstructor
+@AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Lot {
 

@@ -15,8 +15,10 @@ import java.util.List;
 /**
  * The core monitoring pipeline. One {@link #runCycle()} invocation:
  * for every enabled filter and every ready provider, searches, deduplicates
- * against the local database, sends genuinely new lots to Telegram and records
- * them so they are never sent again.
+ * against the local database, sends genuinely new or relisted lots to
+ * Telegram and records them. A lot whose auction date has changed since it
+ * was last seen is treated as relisted (see {@link #isRelisted}) and is
+ * delivered again rather than being silently dropped.
  *
  * <p>Per-provider and per-lot failures are isolated and logged so a single bad
  * source or a single Telegram error cannot abort the whole cycle.
@@ -71,8 +73,9 @@ public class MonitoringService {
         refreshFoundToday();
     }
 
+    /** @return the number of newly discovered (first-seen) lots for this filter. */
     private int processFilter(AuctionProvider provider, SearchFilter filter) {
-        int sent = 0;
+        int newlyFound = 0;
         List<Lot> lots;
         try {
             lots = provider.search(filter);
@@ -89,18 +92,50 @@ public class MonitoringService {
             if (!provider.matches(lot, filter)) {
                 continue;
             }
-            if (lotRepository.exists(lot.getAuction(), lot.getLotId())) {
-                continue; // already seen previously — never resend
+            Lot existing = lotRepository.findDetails(lot.getAuction(), lot.getLotId());
+            boolean relisted = existing != null && isRelisted(existing, lot);
+            if (existing != null && !relisted) {
+                continue; // already seen previously with the same auction date — never resend
             }
-            boolean inserted = lotRepository.insertIfNew(lot, Instant.now().toString(), false);
-            if (!inserted) {
-                continue; // lost a race with another cycle
+            // Fetch the full photo gallery only now that we know the lot is new or
+            // relisted, so we don't pay the per-lot image request for lots we skip.
+            enrichPhotos(provider, lot);
+            if (relisted) {
+                lotRepository.updateRelisted(lot, Instant.now().toString());
+                uiLog.info("Лот выставлен повторно: " + lot.getAuction().getDisplayName()
+                        + " Lot " + lot.getLotId() + " (" + lot.getAuctionDate() + ")");
+            } else {
+                boolean inserted = lotRepository.insertIfNew(lot, Instant.now().toString(), false);
+                if (!inserted) {
+                    continue; // lost a race with another cycle
+                }
             }
-            if (deliver(lot, filter)) {
-                sent++;
-            }
+            // Count the lot as found regardless of whether delivery succeeds; a
+            // failed Telegram send leaves sent=0 so a later cycle retries.
+            newlyFound++;
+            deliver(lot, filter);
         }
-        return sent;
+        return newlyFound;
+    }
+
+    /**
+     * A lot is relisted (as opposed to a plain duplicate) when it was seen
+     * before but now carries a different, non-null auction date — e.g. a
+     * "no sale" lot re-offered at a later auction under the same lot number.
+     */
+    private boolean isRelisted(Lot existing, Lot incoming) {
+        String oldDate = existing.getAuctionDate();
+        String newDate = incoming.getAuctionDate();
+        return oldDate != null && newDate != null && !oldDate.equals(newDate);
+    }
+
+    /** Enriches a lot's photos, isolating any provider failure. */
+    private void enrichPhotos(AuctionProvider provider, Lot lot) {
+        try {
+            provider.enrichPhotos(lot);
+        } catch (RuntimeException e) {
+            uiLog.error("Не удалось загрузить фото лота " + lot.getLotId(), e);
+        }
     }
 
     private boolean deliver(Lot lot, SearchFilter filter) {

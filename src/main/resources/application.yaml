@@ -19,15 +19,36 @@ app:
     # dedup -> persist -> Telegram pipeline can be exercised without the real
     # Copart/IAAI parsers. Keep false in production.
     demo-provider-enabled: false
+    # How many days ahead (starting today) an auction may fall to be reported:
+    # 1 = today only, 2 = today+tomorrow. Bootstrap default only — once changed
+    # via Settings in the app, the DB value takes over.
+    default-day-range: 1
   http:
     connect-timeout-seconds: 15
     request-timeout-seconds: 30
     max-retries: 3
     retry-backoff-millis: 1000
+  # Прогонять трафик площадок через внешний US-прокси, чтобы НЕ держать
+  # системный VPN. Нужен прокси с US-адресом (у многих VPN есть режим
+  # прокси/SOCKS5; либо отдельный прокси-сервис).
+  #   scheme: http  — рекомендуется, работает для Copart И IAAI/Telegram
+  #   scheme: socks5 — только Copart (Java HTTP-клиент SOCKS не поддерживает)
+  proxy:
+    enabled: false
+    scheme: http
+    host: ""
+    port: 0
+    username: ""
+    password: ""
   copart:
     # Set headless=false (and optionally slow-mo-millis) to watch the login flow
     # while tuning selectors against the real site.
     headless: true
+    # Use a real installed browser instead of Playwright's bundled Chromium — a
+    # much more convincing fingerprint against Imperva/Incapsula bot detection.
+    # "msedge" = Microsoft Edge (ships with Windows), "chrome" = Google Chrome.
+    # Leave empty to use bundled Chromium.
+    channel: msedge
     login-url: https://www.copart.com/login/
     dashboard-url: https://www.copart.com/dashboard/
     navigation-timeout-seconds: 45
