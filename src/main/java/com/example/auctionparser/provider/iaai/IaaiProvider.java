@@ -4,6 +4,7 @@ import com.example.auctionparser.model.AuctionType;
 import com.example.auctionparser.model.Lot;
 import com.example.auctionparser.model.SearchFilter;
 import com.example.auctionparser.provider.AuctionProvider;
+import com.example.auctionparser.service.SettingsService;
 import com.example.auctionparser.util.AuctionDates;
 import com.example.auctionparser.util.RetryableHttpClient;
 import org.jsoup.Jsoup;
@@ -58,10 +59,12 @@ public class IaaiProvider implements AuctionProvider {
 
     private final RetryableHttpClient http;
     private final IaaiHtmlParser parser;
+    private final SettingsService settingsService;
 
-    public IaaiProvider(RetryableHttpClient http, IaaiHtmlParser parser) {
+    public IaaiProvider(RetryableHttpClient http, IaaiHtmlParser parser, SettingsService settingsService) {
         this.http = http;
         this.parser = parser;
+        this.settingsService = settingsService;
     }
 
     @Override
@@ -114,6 +117,7 @@ public class IaaiProvider implements AuctionProvider {
         // server-side, however, so we run one keyword query per year in the range
         // ("make model year") — each such result set is usually small enough to fit
         // one page — and merge, deduplicating by lot id and capping the total.
+        int dayRange = settingsService.getAppSettings().getAuctionDayRange();
         java.util.LinkedHashMap<String, Lot> byId = new java.util.LinkedHashMap<>();
         boolean first = true;
         for (String keyword : buildKeywords(filter)) {
@@ -137,7 +141,7 @@ public class IaaiProvider implements AuctionProvider {
                 // only imminent (today/tomorrow) auctions within the year range.
                 if (modelMatches(lot, filter)
                         && matches(lot, filter)
-                        && AuctionDates.isTodayOrTomorrow(lot.getAuctionDate(), ZoneId.systemDefault())) {
+                        && AuctionDates.isWithinDayRange(lot.getAuctionDate(), ZoneId.systemDefault(), dayRange)) {
                     byId.put(lot.getLotId(), lot);
                     if (byId.size() >= MAX_LOTS) {
                         break;

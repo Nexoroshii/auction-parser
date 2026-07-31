@@ -3,15 +3,16 @@ package com.example.auctionparser.util;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 
 /**
  * Parses the free-form {@code auctionDate} strings the parsers produce and tells
- * whether a lot's auction is imminent (today or tomorrow).
+ * whether a lot's auction falls within the user's configured look-ahead window.
  *
  * <p>Copart renders {@code yyyy-MM-dd[ HH:mm:ss]} and IAAI {@code dd MMM yyyy};
  * both are handled. An unparseable or missing date is treated as "not imminent"
- * so the today/tomorrow constraint is applied strictly.
+ * so the window constraint is applied strictly.
  */
 public final class AuctionDates {
 
@@ -21,14 +22,19 @@ public final class AuctionDates {
     private AuctionDates() {
     }
 
-    /** True if the given auction-date string is today or tomorrow in {@code zone}. */
-    public static boolean isTodayOrTomorrow(String auctionDate, ZoneId zone) {
+    /**
+     * True if the given auction-date string falls within {@code dayRange} days
+     * starting today (inclusive) in {@code zone} — e.g. {@code dayRange=1} means
+     * today only, {@code dayRange=2} means today or tomorrow.
+     */
+    public static boolean isWithinDayRange(String auctionDate, ZoneId zone, int dayRange) {
         LocalDate date = parse(auctionDate);
         if (date == null) {
             return false;
         }
         LocalDate today = LocalDate.now(zone);
-        return date.equals(today) || date.equals(today.plusDays(1));
+        long diff = ChronoUnit.DAYS.between(today, date);
+        return diff >= 0 && diff < Math.max(1, dayRange);
     }
 
     /** Best-effort parse of the date portion; null when unrecognised. */

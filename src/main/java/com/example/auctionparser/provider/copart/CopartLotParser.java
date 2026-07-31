@@ -87,16 +87,28 @@ public class CopartLotParser {
         if (json == null || json.isBlank()) {
             return ParsedPage.EMPTY;
         }
-        JsonNode results;
+        JsonNode root;
         try {
-            results = mapper.readTree(json).path("data").path("results");
+            root = mapper.readTree(json);
         } catch (RuntimeException e) {
             log.warn("Could not parse Copart search JSON: {}", e.toString());
             return ParsedPage.EMPTY;
         }
+        JsonNode results = root.path("data").path("results");
         JsonNode content = results.path("content");
         if (!content.isArray()) {
-            log.warn("Copart search JSON has no results.content array");
+            // A "success" envelope with no content is Copart's normal way of saying
+            // we've paged past its result window (it doesn't error, it just stops
+            // returning content) — that's an expected end-of-results, not a fault.
+            // Anything else missing the array (challenge page, real error code, …)
+            // is worth the raw body to diagnose.
+            if (root.path("returnCode").asInt(-1) == 1) {
+                log.debug("Copart search returned no further results (paged past its result window)");
+            } else {
+                log.warn("Copart search JSON has no results.content array (returnCode={}); "
+                                + "raw body (first 500 chars): {}",
+                        root.path("returnCode").asText("?"), json.substring(0, Math.min(500, json.length())));
+            }
             return ParsedPage.EMPTY;
         }
         int total = results.path("totalElements").asInt(content.size());

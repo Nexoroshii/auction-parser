@@ -33,4 +33,12 @@ public class AppSettings {
     /** Include video (when present) in Telegram notifications. */
     @Builder.Default
     private boolean sendVideo = true;
+
+    /** How many days ahead (starting today) an auction may fall to be reported: 1 = today only, 2 = today+tomorrow. */
+    @Builder.Default
+    private int auctionDayRange = 2;
+
+    /** Route each lot into a per-make forum topic instead of the chat's General topic. */
+    @Builder.Default
+    private boolean topicsEnabled = false;
 }

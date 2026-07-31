@@ -50,6 +50,8 @@ public class AppProperties {
     public static class Monitoring {
         private int defaultIntervalMinutes = 5;
         private boolean demoProviderEnabled = false;
+        /** Default auction-date look-ahead: 1 = today only, 2 = today+tomorrow. */
+        private int defaultDayRange = 2;
     }
 
     @Data

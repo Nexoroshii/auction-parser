@@ -100,6 +100,7 @@ public class CopartProvider implements AuctionProvider {
         boolean modelServerSide = !modelClauses.isEmpty();
         String query = modelServerSide && !makeQuery.isBlank() ? makeQuery : freeQuery;
 
+        int dayRange = settingsService.getAppSettings().getAuctionDayRange();
         List<Lot> collected = new ArrayList<>();
         int page = 0;
         while (collected.size() < MAX_LOTS && page < MAX_PAGES) {
@@ -118,8 +119,8 @@ public class CopartProvider implements AuctionProvider {
                 if (!modelServerSide && !modelMatches(lot, filter)) {
                     continue;
                 }
-                if (!AuctionDates.isTodayOrTomorrow(lot.getAuctionDate(), ZoneId.systemDefault())) {
-                    continue; // only imminent (today/tomorrow) auctions
+                if (!AuctionDates.isWithinDayRange(lot.getAuctionDate(), ZoneId.systemDefault(), dayRange)) {
+                    continue; // only within the configured look-ahead window
                 }
                 collected.add(lot);
                 if (collected.size() >= MAX_LOTS) {

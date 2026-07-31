@@ -229,6 +229,12 @@ public class CopartBrowserManager {
      * Loads a Copart page once per session so Imperva has issued the cookies the
      * subsequent API POSTs need. The dashboard probe during login usually covers
      * this, but a home-page visit here makes the search path self-sufficient.
+     *
+     * <p>Waits for {@code NETWORKIDLE}, not just {@code DOMCONTENTLOADED} — the
+     * Incapsula JS challenge runs and sets its clearance cookie asynchronously
+     * after the DOM is ready, so closing the page any earlier races it: the very
+     * first search POST would fire before the cookie exists and come back as an
+     * unparseable challenge page. Same reasoning as the login flow below.
      */
     private void primeSearch() {
         if (searchPrimed) {
@@ -237,7 +243,7 @@ public class CopartBrowserManager {
         Page page = context.newPage();
         try {
             page.navigate("https://www.copart.com/");
-            page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+            page.waitForLoadState(LoadState.NETWORKIDLE);
             searchPrimed = true;
         } catch (RuntimeException e) {
             log.debug("Copart search prime navigation failed: {}", e.toString());
@@ -336,8 +342,11 @@ public class CopartBrowserManager {
         try {
             log.info("Navigating to Copart login page");
             page.navigate(config.getLoginUrl());
-            // Chromium transparently solves the Incapsula JS challenge here.
-            page.waitForLoadState(LoadState.NETWORKIDLE);
+            // Chromium transparently solves the Incapsula JS challenge here. We used to
+            // block on NETWORKIDLE for this, but Copart's login page keeps background
+            // XHRs (Incapsula heartbeat, analytics, chat widget) running indefinitely,
+            // so network never truly goes idle and the wait would time out even though
+            // the page had rendered fine. The waitForSelector below is the real gate.
             // Both consent overlays sit on top of the Sign in button.
             dismissOverlay(page, CONSENT_ACCEPT_SELECTOR, "consent dialog");
             dismissOverlay(page, COOKIE_ACCEPT_SELECTOR, "cookie banner");
