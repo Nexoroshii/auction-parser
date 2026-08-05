@@ -113,7 +113,7 @@ public class MonitoringService {
             // Count the lot as found regardless of whether delivery succeeds; a
             // failed Telegram send leaves sent=0 so a later cycle retries.
             newlyFound++;
-            deliver(lot, filter);
+            deliver(lot, filter, relisted);
         }
         return newlyFound;
     }
@@ -138,9 +138,9 @@ public class MonitoringService {
         }
     }
 
-    private boolean deliver(Lot lot, SearchFilter filter) {
+    private boolean deliver(Lot lot, SearchFilter filter, boolean relisted) {
         try {
-            boolean ok = notifier.sendLot(lot, filter.getTelegramChatId());
+            boolean ok = notifier.sendLot(lot, filter.getTelegramChatId(), relisted);
             if (ok) {
                 lotRepository.markSent(lot.getAuction(), lot.getLotId());
                 uiLog.info("Отправлено в Telegram: " + lot.getAuction().getDisplayName()

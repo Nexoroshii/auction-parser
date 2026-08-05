@@ -34,7 +34,11 @@ public class AppSettings {
     @Builder.Default
     private boolean sendVideo = true;
 
-    /** How many days ahead (starting today) an auction may fall to be reported: 1 = today only, 2 = today+tomorrow. */
+    /**
+     * How many days ahead (starting today) an auction may fall to be reported: 1 = today only,
+     * 2 = today+tomorrow. Sourced from {@code monitoring.default-day-range} in application.yaml
+     * on every read — not user-adjustable at runtime, so it can't drift from the config file.
+     */
     @Builder.Default
     private int auctionDayRange = 2;
 
