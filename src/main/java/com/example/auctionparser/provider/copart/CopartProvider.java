@@ -5,6 +5,7 @@ import com.example.auctionparser.model.CopartCredentials;
 import com.example.auctionparser.model.Lot;
 import com.example.auctionparser.model.SearchFilter;
 import com.example.auctionparser.provider.AuctionProvider;
+import com.example.auctionparser.provider.ModelLines;
 import com.example.auctionparser.service.SettingsService;
 import com.example.auctionparser.util.AuctionDates;
 import org.slf4j.Logger;
@@ -161,7 +162,7 @@ public class CopartProvider implements AuctionProvider {
         List<String> clauses = new ArrayList<>();
         for (CopartLotParser.ModelGroup group : parser.modelGroups(probe)) {
             String name = normalize(group.displayName());
-            if (name.equals(target) || name.startsWith(target + " ")) {
+            if (ModelLines.isFamilyMatch(target, name)) {
                 clauses.add(group.query());
             }
         }
@@ -211,13 +212,14 @@ public class CopartProvider implements AuctionProvider {
      * Copart splits a series inconsistently between the two (e.g. "330I").
      */
     private boolean modelMatches(Lot lot, SearchFilter filter) {
-        String model = trimmed(filter.getModel());
+        String model = normalize(trimmed(filter.getModel()));
         if (model.isBlank()) {
             return true;
         }
-        String needle = model.toLowerCase();
-        return (lot.getModel() != null && lot.getModel().toLowerCase().contains(needle))
-                || (lot.getTrim() != null && lot.getTrim().toLowerCase().contains(needle));
+        String lotModel = normalize(lot.getModel());
+        String lotTrim = normalize(lot.getTrim());
+        return (!lotModel.isBlank() && ModelLines.isFamilyMatch(model, lotModel))
+                || (!lotTrim.isBlank() && ModelLines.isFamilyMatch(model, lotTrim));
     }
 
     private static String trimmed(String s) {

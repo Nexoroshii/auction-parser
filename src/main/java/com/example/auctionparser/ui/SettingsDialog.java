@@ -12,7 +12,6 @@ import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
@@ -27,9 +26,6 @@ import javafx.scene.layout.GridPane;
  */
 public class SettingsDialog extends Dialog<Boolean> {
 
-    private static final String DAY_RANGE_TODAY_ONLY = "Только сегодня";
-    private static final String DAY_RANGE_TWO_DAYS = "Сегодня и завтра";
-
     private final SettingsService settingsService;
     private final TelegramNotifier notifier;
     private final CopartBrowserManager copartBrowser;
@@ -41,7 +37,6 @@ public class SettingsDialog extends Dialog<Boolean> {
     private final CheckBox minimizeToTray = new CheckBox("Сворачивать в трей при закрытии");
     private final CheckBox sendPhotos = new CheckBox("Отправлять фото");
     private final CheckBox sendVideo = new CheckBox("Отправлять видео");
-    private final ComboBox<String> auctionDayRange = new ComboBox<>();
     private final CheckBox topicsEnabled = new CheckBox("Разделять лоты по темам (по маркам)");
     private final Label testResult = new Label();
 
@@ -67,8 +62,6 @@ public class SettingsDialog extends Dialog<Boolean> {
         minimizeToTray.setSelected(app.isMinimizeToTray());
         sendPhotos.setSelected(app.isSendPhotos());
         sendVideo.setSelected(app.isSendVideo());
-        auctionDayRange.getItems().addAll(DAY_RANGE_TODAY_ONLY, DAY_RANGE_TWO_DAYS);
-        auctionDayRange.setValue(app.getAuctionDayRange() <= 1 ? DAY_RANGE_TODAY_ONLY : DAY_RANGE_TWO_DAYS);
         topicsEnabled.setSelected(app.isTopicsEnabled());
 
         CopartCredentials copart = settingsService.getCopartCredentials();
@@ -97,8 +90,6 @@ public class SettingsDialog extends Dialog<Boolean> {
         grid.add(minimizeToTray, 1, r++);
         grid.add(sendPhotos, 1, r++);
         grid.add(sendVideo, 1, r++);
-        grid.add(new Label("Горизонт поиска лотов"), 0, r);
-        grid.add(auctionDayRange, 1, r++);
         grid.add(topicsEnabled, 1, r++);
         grid.add(new Separator(), 0, r++, 2, 1);
         grid.add(new Label("Copart логин"), 0, r);
@@ -176,7 +167,6 @@ public class SettingsDialog extends Dialog<Boolean> {
                 .minimizeToTray(minimizeToTray.isSelected())
                 .sendPhotos(sendPhotos.isSelected())
                 .sendVideo(sendVideo.isSelected())
-                .auctionDayRange(DAY_RANGE_TODAY_ONLY.equals(auctionDayRange.getValue()) ? 1 : 2)
                 .topicsEnabled(topicsEnabled.isSelected())
                 .build());
     }

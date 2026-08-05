@@ -10,9 +10,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class MessageFormatter {
 
-    public String format(Lot lot) {
+    public String format(Lot lot, boolean relisted) {
         StringBuilder sb = new StringBuilder();
-        sb.append("🚗 Новый лот\n\n");
+        sb.append(relisted ? "🔁 Повторно выставлен\n\n" : "🚗 Новый лот\n\n");
 
         String title = join(" ", lot.getMake(), lot.getModel(), lot.getTrim());
         if (!title.isBlank()) {

@@ -4,6 +4,7 @@ import com.example.auctionparser.model.AuctionType;
 import com.example.auctionparser.model.Lot;
 import com.example.auctionparser.model.SearchFilter;
 import com.example.auctionparser.provider.AuctionProvider;
+import com.example.auctionparser.provider.ModelLines;
 import com.example.auctionparser.service.SettingsService;
 import com.example.auctionparser.util.AuctionDates;
 import com.example.auctionparser.util.RetryableHttpClient;
@@ -262,7 +263,7 @@ public class IaaiProvider implements AuctionProvider {
             if (f.isBlank()) {
                 continue;
             }
-            if (f.equals(model) || f.startsWith(model + " ")) {
+            if (ModelLines.isFamilyMatch(model, f)) {
                 return true;
             }
             for (String t : trims) {

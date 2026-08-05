@@ -58,9 +58,12 @@ public class TelegramNotifier {
      * caption limit.
      *
      * @param chatIdOverride optional per-filter chat id; null uses the default.
+     * @param relisted whether this lot was previously seen under a different
+     *                 auction date (see {@link com.example.auctionparser.service.MonitoringService#isRelisted}) —
+     *                 flagged in the message text rather than presented as new.
      * @return true if the primary message was delivered.
      */
-    public boolean sendLot(Lot lot, String chatIdOverride) throws IOException {
+    public boolean sendLot(Lot lot, String chatIdOverride, boolean relisted) throws IOException {
         TelegramSettings tg = settingsService.getTelegramSettings();
         if (!tg.isConfigured()) {
             throw new IOException("Telegram is not configured (token/chat id missing)");
@@ -69,7 +72,7 @@ public class TelegramNotifier {
         String token = tg.getBotToken();
         boolean usingDefaultChat = chatIdOverride == null || chatIdOverride.isBlank();
         String chatId = usingDefaultChat ? tg.getChatId() : chatIdOverride;
-        String text = formatter.format(lot);
+        String text = formatter.format(lot, relisted);
         Integer threadId = app.isTopicsEnabled() ? resolveThreadId(token, chatId, lot.getMake()) : null;
 
         boolean hasPhotos = app.isSendPhotos()
