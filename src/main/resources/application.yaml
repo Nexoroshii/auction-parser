@@ -20,9 +20,11 @@ app:
     # Copart/IAAI parsers. Keep false in production.
     demo-provider-enabled: false
     # How many days ahead (starting today) an auction may fall to be reported:
-    # 1 = today only, 2 = today+tomorrow. Bootstrap default only — once changed
-    # via Settings in the app, the DB value takes over.
-    default-day-range: 1
+    # 1 = today only, 2 = today+tomorrow. Read fresh from this file on every
+    # check — there is no in-app setting that can override it. In a packaged
+    # build, config/application.yaml (next to the jar) takes precedence over
+    # this file, so edit that copy instead.
+    default-day-range: 2
   http:
     connect-timeout-seconds: 15
     request-timeout-seconds: 30
