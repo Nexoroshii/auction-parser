@@ -3,12 +3,18 @@ package com.example.auctionparser.telegram;
 import com.example.auctionparser.model.Lot;
 import org.springframework.stereotype.Component;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 /**
  * Builds the Telegram message text for a lot following the spec's template.
  * Missing fields are simply omitted.
  */
 @Component
 public class MessageFormatter {
+
+    private static final String BID_CARS_SEARCH =
+            "https://bid.cars/en/search/results?search-type=typing&query=";
 
     public String format(Lot lot, boolean relisted) {
         StringBuilder sb = new StringBuilder();
@@ -42,10 +48,24 @@ public class MessageFormatter {
         line(sb, "Title", lot.getTitle());
         line(sb, "Seller", lot.getSeller());
 
-        if (lot.getUrl() != null && !lot.getUrl().isBlank()) {
-            sb.append("\nСсылка:\n").append(lot.getUrl());
+        String link = bidCarsLink(lot);
+        if (link != null) {
+            sb.append("\nСсылка:\n").append(link);
         }
         return sb.toString().trim();
+    }
+
+    /**
+     * Bid.cars search-by-lot-number link, which resolves for both Copart and IAAI
+     * lots. Falls back to the original auction URL when there is no lot number.
+     * {@code Lot.url} itself is left untouched — IAAI uses it to fetch photos.
+     */
+    private String bidCarsLink(Lot lot) {
+        String lotId = lot.getLotId();
+        if (lotId != null && !lotId.isBlank()) {
+            return BID_CARS_SEARCH + URLEncoder.encode(lotId.trim(), StandardCharsets.UTF_8);
+        }
+        return lot.getUrl() != null && !lot.getUrl().isBlank() ? lot.getUrl() : null;
     }
 
     private void line(StringBuilder sb, String label, String value) {
