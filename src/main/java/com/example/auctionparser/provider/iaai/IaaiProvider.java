@@ -44,8 +44,18 @@ public class IaaiProvider implements AuctionProvider {
     private static final int MAX_YEAR_SPAN = 40;
     /** Upper bound on keyword requests per search (series expansion × years). */
     private static final int MAX_QUERIES = 40;
-    /** Delay between consecutive keyword requests to avoid Incapsula rate limits. */
-    private static final long REQUEST_DELAY_MS = 500;
+    /**
+     * Delay between consecutive keyword requests to avoid Incapsula rate limits:
+     * a base pause plus random jitter, so the requests don't form a regular burst.
+     */
+    private static final long REQUEST_DELAY_MS = 2000;
+    private static final long REQUEST_JITTER_MS = 1000;
+    /**
+     * Consecutive failed keyword requests after which the search stops. Repeated
+     * connect timeouts mean IAAI is refusing our IP; hammering on only prolongs
+     * the block, so we return what we have and retry on the next cycle.
+     */
+    private static final int MAX_CONSECUTIVE_FAILURES = 2;
     /** Max photos to attach (Telegram's album limit, kept to one message). */
     private static final int MAX_PHOTOS = 10;
     /** Display-sized resizer URL template; {@code %s} is an image key. */
@@ -121,6 +131,9 @@ public class IaaiProvider implements AuctionProvider {
         int dayRange = settingsService.getAppSettings().getAuctionDayRange();
         java.util.LinkedHashMap<String, Lot> byId = new java.util.LinkedHashMap<>();
         boolean first = true;
+        int succeeded = 0;
+        int consecutiveFailures = 0;
+        IOException lastFailure = null;
         for (String keyword : buildKeywords(filter)) {
             if (byId.size() >= MAX_LOTS) {
                 break;
@@ -133,7 +146,29 @@ public class IaaiProvider implements AuctionProvider {
                 throttle();
             }
             first = false;
-            for (Lot lot : fetchKeyword(keyword)) {
+            // One failed keyword must not discard the lots already collected by
+            // the others, so failures are skipped — up to a point (see
+            // MAX_CONSECUTIVE_FAILURES).
+            List<Lot> fetched;
+            try {
+                fetched = fetchKeyword(keyword);
+                succeeded++;
+                consecutiveFailures = 0;
+            } catch (IOException e) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw e; // shutting down — don't keep going
+                }
+                lastFailure = e;
+                consecutiveFailures++;
+                log.warn("IAAI keyword '{}' failed: {}", keyword, e.toString());
+                if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                    log.warn("IAAI search '{}': {} consecutive failures, stopping early with {} lots",
+                            filter.displayLabel(), consecutiveFailures, byId.size());
+                    break;
+                }
+                continue;
+            }
+            for (Lot lot : fetched) {
                 if (lot.getLotId() == null || byId.containsKey(lot.getLotId())) {
                     continue;
                 }
@@ -150,13 +185,19 @@ public class IaaiProvider implements AuctionProvider {
                 }
             }
         }
+        // Nothing got through at all: surface the error instead of silently
+        // reporting "0 new lots".
+        if (succeeded == 0 && lastFailure != null) {
+            throw lastFailure;
+        }
         log.debug("IAAI search '{}': collected {} lots", filter.displayLabel(), byId.size());
         return List.copyOf(byId.values());
     }
 
     private void throttle() {
         try {
-            Thread.sleep(REQUEST_DELAY_MS);
+            Thread.sleep(REQUEST_DELAY_MS
+                    + java.util.concurrent.ThreadLocalRandom.current().nextLong(REQUEST_JITTER_MS + 1));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -186,8 +227,9 @@ public class IaaiProvider implements AuctionProvider {
      * Keyword queries to run so IAAI filters make+model+year server-side. Each
      * query is "make model year". A model that is a known series (e.g. "3 Series")
      * is expanded into its trims (330i, 328i, …) — see {@link IaaiModelAliases} —
-     * because IAAI lists lots under the trim, not the series. Falls back to a
-     * single unyeared query when no year range is set. Bounded by {@link #MAX_QUERIES}.
+     * because IAAI lists lots under the trim, not the series; with a year range,
+     * a trim is only queried for the years it was actually sold in. Falls back to
+     * a single unyeared query when no year range is set. Bounded by {@link #MAX_QUERIES}.
      */
     private List<String> buildKeywords(SearchFilter filter) {
         String make = filter.getMake() == null ? "" : filter.getMake().trim();
@@ -207,30 +249,28 @@ public class IaaiProvider implements AuctionProvider {
             variants = List.of(""); // make-only search
         }
 
-        List<String> bases = new ArrayList<>();
-        for (String variant : variants) {
-            String base = (make + " " + variant).trim();
-            if (!base.isEmpty()) {
-                bases.add(base);
-            }
-        }
-
         List<Integer> years = yearsInRange(filter);
         List<String> keywords = new ArrayList<>();
-        if (years.isEmpty()) {
-            for (String base : bases) {
+        outer:
+        for (String variant : variants) {
+            String base = (make + " " + variant).trim();
+            if (base.isEmpty()) {
+                continue;
+            }
+            if (years.isEmpty()) {
                 if (keywords.size() >= MAX_QUERIES) {
                     break;
                 }
                 keywords.add(base);
+                continue;
             }
-            return keywords;
-        }
-        outer:
-        for (String base : bases) {
             for (int y : years) {
                 if (keywords.size() >= MAX_QUERIES) {
                     break outer;
+                }
+                // Skip series trims that weren't sold that year ("318i 2022").
+                if (!trims.isEmpty() && !IaaiModelAliases.trimsForSeries(model, y).contains(variant)) {
+                    continue;
                 }
                 keywords.add(base + " " + y);
             }

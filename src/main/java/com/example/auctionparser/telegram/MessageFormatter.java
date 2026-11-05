@@ -1,5 +1,6 @@
 package com.example.auctionparser.telegram;
 
+import com.example.auctionparser.model.AuctionType;
 import com.example.auctionparser.model.Lot;
 import org.springframework.stereotype.Component;
 
@@ -9,6 +10,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class MessageFormatter {
+
+    private static final String BID_CARS_LOT = "https://bid.cars/ru/lot/";
 
     public String format(Lot lot, boolean relisted) {
         StringBuilder sb = new StringBuilder();
@@ -42,10 +45,41 @@ public class MessageFormatter {
         line(sb, "Title", lot.getTitle());
         line(sb, "Seller", lot.getSeller());
 
-        if (lot.getUrl() != null && !lot.getUrl().isBlank()) {
-            sb.append("\nСсылка:\n").append(lot.getUrl());
+        String link = bidCarsLink(lot);
+        if (link != null) {
+            sb.append("\nСсылка:\n").append(link);
         }
         return sb.toString().trim();
+    }
+
+    /**
+     * Bid.cars lot link, e.g. {@code https://bid.cars/ru/lot/1-61349196/2024-BMW-X3-5UX53DP00R9V58285}
+     * (prefix 1 = Copart, 0 = IAAI; slug = year-make-model-VIN, each part optional).
+     * Falls back to the original auction URL when there is no lot number.
+     * {@code Lot.url} itself is left untouched — IAAI uses it to fetch photos.
+     */
+    private String bidCarsLink(Lot lot) {
+        String lotId = lot.getLotId();
+        if (lotId == null || lotId.isBlank()) {
+            return lot.getUrl() != null && !lot.getUrl().isBlank() ? lot.getUrl() : null;
+        }
+        String prefix = lot.getAuction() == AuctionType.IAAI ? "0" : "1";
+        StringBuilder sb = new StringBuilder(BID_CARS_LOT)
+                .append(prefix).append('-').append(lotId.trim().replaceAll("[^A-Za-z0-9]", ""));
+        String slug = join("-", slugPart(lot.getYear()), slugPart(lot.getMake()),
+                slugPart(lot.getModel()), slugPart(lot.getVin()));
+        if (!slug.isBlank()) {
+            sb.append('/').append(slug);
+        }
+        return sb.toString();
+    }
+
+    /** Collapses any run of non-alphanumerics into a single hyphen; null-safe. */
+    private String slugPart(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return value.toString().trim().replaceAll("[^A-Za-z0-9]+", "-").replaceAll("^-|-$", "");
     }
 
     private void line(StringBuilder sb, String label, String value) {
