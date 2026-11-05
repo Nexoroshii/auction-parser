@@ -264,7 +264,10 @@ public class CopartBrowserManager {
         }
         log.info("Launching Chromium for Copart (headless={}, channel={})",
                 config.isHeadless(), config.getChannel());
-        playwright = Playwright.create();
+        // The system browser channel is used, so skip Playwright's own browser download
+        // (it blocks startup and fails when the CDN is unreachable).
+        playwright = Playwright.create(new Playwright.CreateOptions()
+                .setEnv(java.util.Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")));
         browser = launchBrowser();
         context = newContext();
         applyStealth(context);
